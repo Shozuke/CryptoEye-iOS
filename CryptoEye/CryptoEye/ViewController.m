@@ -5,13 +5,15 @@
 //  Created by Akshay on 11/12/17.
 //  Copyright © 2017 Akshay. All rights reserved.
 //
-
+#import "Reachability.h"
 #import "ViewController.h"
+@import SCLAlertView_Objective_C;
 #import "CryptoTableViewCell.h"
 #import "MoreInfoViewController.h"
 #import "AnimLoaderViewController.h"
 @import Lottie;
-
+#import <tgmath.h>
+#import "AboutViewController.h"
 
 @interface ViewController (){
     NSArray *jsonArray;
@@ -25,6 +27,7 @@ NSMutableArray *shrt_form;
     NSString *idpush;
     UIView* coverView;
     NSInteger *i ;
+   int ii;
     LOTAnimationView *animation;
 }
 
@@ -35,30 +38,29 @@ NSMutableArray *shrt_form;
 - (void)viewDidLoad {
     [super viewDidLoad];
     i  = 0;
+    ii=0;
 
     // Do any additional setup after loading the view, typically from a nib.
 }
 
 -(void)viewDidAppear:(BOOL)animated{
-   
-    
-    
-    if(i==0){
-        [NSTimer scheduledTimerWithTimeInterval:2
-                                         target:self
-                                       selector:@selector(showloader)
-                                       userInfo:nil
-                                        repeats:NO];
-        [NSTimer scheduledTimerWithTimeInterval:5
-                                         target:self
-                                       selector:@selector(stoploader)
-                                       userInfo:nil
-                                        repeats:NO];
-        i++;
+    self.interstitial =[self createAndLoadInterstitial];
+
+
+    GADRequest *request = [GADRequest request];
+    [self.interstitial loadRequest:request];
+      self.bannerView.rootViewController = self;
+    self.bannerView.adUnitID = @"ca-app-pub-9656245162764779/9445807500";
+  
+    [self.bannerView loadRequest:[GADRequest request]];
+
+
+    if(i>=0){
+        [self showloader];
     }
     else{
        
-        [self getdatatable];
+       
       [self.tableCvi reloadSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationFade];
          i++;
       
@@ -81,6 +83,12 @@ NSMutableArray *shrt_form;
         controller.coinLabelStr = coinnamepush;
        controller.coinshrt = iconfm;
        controller.idstr = idpush;
+       
+   }
+   else if ([segue.identifier isEqualToString:@"showinfo"]){
+       //add data to segue before showing about
+       AboutViewController *controller = (
+       AboutViewController*)segue.destinationViewController;
        
    }
     
@@ -123,7 +131,7 @@ NSMutableArray *shrt_form;
 
 -(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section{
     ///NSLog(@"%lu", (unsigned long)jsonArray.count);
-    return jsonArray.count;
+    return [jsonArray count];
 }
 -(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath{
     [coverView removeFromSuperview];
@@ -150,8 +158,28 @@ cell.coinicon.image = [UIImage imageNamed:[NSString stringWithFormat:@"%@.png",[
     
     return cell;
 }
+- (GADInterstitial *)createAndLoadInterstitial {
+    GADInterstitial *interstitial =
+    [[GADInterstitial alloc] initWithAdUnitID:@"ca-app-pub-9656245162764779/8774711901"];
+    interstitial.delegate = self;
+    [interstitial loadRequest:[GADRequest request]];
+    return interstitial;
+}
+
+- (void)interstitialDidDismissScreen:(GADInterstitial *)interstitial {
+    self.interstitial = [self createAndLoadInterstitial];
+}
 -(void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath{
-    iconfm =  shrt_form[indexPath.row];
+    ++ii;
+    if (ii%3 == 0){
+        if (self.interstitial.isReady) {
+            [self.interstitial presentFromRootViewController:self];
+        } else {
+            NSLog(@"Ad wasn't ready");
+        }
+
+    }
+iconfm =  shrt_form[indexPath.row];
     coinnamepush =  name[indexPath.row];
     idpush = rank[indexPath.row];
     [self performSegueWithIdentifier:@"morecrypinfo" sender:self];
@@ -159,30 +187,45 @@ cell.coinicon.image = [UIImage imageNamed:[NSString stringWithFormat:@"%@.png",[
 }
 -(void)stoploader{
     animation.loopAnimation = false;
-        [coverView removeFromSuperview];
+//        [coverView removeFromSuperview];
 }
 -(void)showloader{
     // get your window screen size
     CGRect screenRect = [[UIScreen mainScreen] bounds];
     //create a new view with the same size
     coverView = [[UIView alloc] initWithFrame:screenRect];
-    animation = [LOTAnimationView animationNamed:@"pulse_loader"];
+    animation = [LOTAnimationView animationNamed:@"loader_ring"];
     animation.contentMode = UIViewContentModeScaleAspectFit;
     animation.center = self.view.center;
     animation.loopAnimation = TRUE;
-    [animation playWithCompletion:^(BOOL animationFinished) {
-        [UIView animateWithDuration:1.0f animations:^{
-         
+    Reachability *networkReachability = [Reachability reachabilityForInternetConnection];
+    NetworkStatus networkStatus = [networkReachability currentReachabilityStatus];
+    if (networkStatus == NotReachable) {
+        //no internet connection
+        SCLAlertView *alert = [[SCLAlertView alloc] init];
+        NSLog(@"There IS NO internet connection");
+        [alert showError:self title:@"No Internet Connection" subTitle:@"Check your internet connection and try again." closeButtonTitle:@"OK" duration:0.0f]; // Error
+    } else {
+         [coverView addSubview:animation];
+            [self getdatatable];
+        // change the background color to black and the opacity to 0.6
+        coverView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.4];
+        // add this new view to your main view
+        [self.view addSubview:coverView];
+        //We have internet conn
+        [animation playWithCompletion:^(BOOL animationFinished) {
+            [UIView animateWithDuration:1.0f animations:^{
+                  [self.tableCvi reloadSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationFade];
+            }];
+            
+            
         }];
-       
-        [self getdatatable];
-          [self.tableCvi reloadSections:[NSIndexSet indexSetWithIndex:0] withRowAnimation:UITableViewRowAnimationFade];
-    }];
-    [coverView addSubview:animation];
-    // change the background color to black and the opacity to 0.6
-    coverView.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.6];
-    // add this new view to your main view
-    [self.view addSubview:coverView];
+    
+      
+    }
+  
+   
+ 
 }
 
 - (void)didReceiveMemoryWarning {
@@ -190,7 +233,7 @@ cell.coinicon.image = [UIImage imageNamed:[NSString stringWithFormat:@"%@.png",[
     // Dispose of any resources that can be recreated.
 }
 -(void)getdatatable{
-    NSString *url = @"https://api.coinmarketcap.com/v1/ticker/?limit=200";
+    NSString *url = @"https://api.coinmarketcap.com/v1/ticker/?limit=500";
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] init];
     [request setHTTPMethod:@"GET"];
     [request setURL:[NSURL URLWithString:url]];
@@ -215,6 +258,7 @@ cell.coinicon.image = [UIImage imageNamed:[NSString stringWithFormat:@"%@.png",[
     }
     else
     {
+        [self stoploader];
         if ([jsonObject isKindOfClass:[NSArray class]])
         {
             //NSLog(@"it is an array!");
@@ -243,6 +287,10 @@ cell.coinicon.image = [UIImage imageNamed:[NSString stringWithFormat:@"%@.png",[
 }
 }
 
+
+- (IBAction)showInfo:(id)sender {
+      [self performSegueWithIdentifier:@"showinfo" sender:self];
+}
 
 - (IBAction)refDataBtn:(id)sender {
     [self.tableCvi reloadData];
